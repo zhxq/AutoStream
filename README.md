@@ -3,7 +3,7 @@ A kernel module to tag stream ID to Linux block I/O requests using AutoStream (o
 
 To compile and install this module as a Linux Kernel module, just run `make`. 
 
-Before loading the kernel module, please check if your SSD supports stream and your OS has enabled stream capability as described in the first two sections of this README. For the usage of the kernel module, see "**Enable the Kernel Module and Assign Processes to Them**" and "**Change Kernel Module Parameters On-the-fly**".
+Before loading the kernel module, please check if your SSD supports stream and your OS has enabled stream capability as described in the first two sections of this README. For the usage of the kernel module, see "**Enable the Kernel Module and Assign Parameters to Module**" and "**Change Kernel Module Parameters On-the-fly**".
 
 ## Check directory setting
 `sudo nvme dir-receive /dev/nvme0n1 -D 1 -O 1 -H`
@@ -19,7 +19,7 @@ This is to enable the stream capability in Linux Kernel.
  - Run `sudo update-grub` to update grub settings.
  - Reboot.
 
-## Enable the Kernel Module and Assign Processes to Them
+## Enable the Kernel Module and Assign Parameters to Module
 
 `sudo modprobe autostream disk_list="disk0n1:1048576:4096:5:16;disk1n1:16777216:8192:7:32"`
 
