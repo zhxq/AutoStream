@@ -1,5 +1,5 @@
-# BlockIOStreamTagger
-A kernel module to tag stream ID to Linux block I/O requests. 
+# AutoStream
+A kernel module to tag stream ID to Linux block I/O requests using AutoStream (original paper: https://dl.acm.org/doi/10.1145/3078468.3078469. Currently only SFR is implemented). 
 
 To compile and install this module as a Linux Kernel module, just run `make`. 
 
@@ -21,20 +21,18 @@ This is to enable the stream capability in Linux Kernel.
 
 ## Enable the Kernel Module and Assign Processes to Them
 
-`sudo modprobe streamidtag streams="a;b,c;d,e,f"`
+`sudo modprobe autostream disk_list="disk0n1:1048576:4096:5:16;disk1n1:16777216:8192:7:32"`
 
-The kernel module accepts a parameter, namely "streams", as a list of processes to be assigned to different streams. To separate streams, use semicolon (;). To separate processes in streams, use comma (,). Trailing semicolons can be skipped (i.e.: ";;d,e,f" is equivalent to ";;d,e,f;").
+The kernel module accepts a parameter, namely "disk_list", as a list of disks to apply AutoStream, and parameters for the disk.
 
-In this example, it will set parameter `streams` of module `streamidtag` to "a;b,c;d,e,f", which asks the kernel module to assign all write requests by process `a` to stream 2, all write requests by process `b` and `c` to stream 3, and `d`, `e`, `f` to stream 4. Stream 5 has no process assigned. 
+In this example, it will set parameter `disk_list` of `autostream` module to "disk0n1:1048576:4096:5:16;disk1n1:16777216:8192:7:32", which asks the kernel module to apply AutoStream on disk0n1 and disk1n1, where size of disk0n1 is 1048576 bytes, one chunk per 4096 bytes on disk, decay period as 5s, and 16 streams supported by disk0n1 - similar goes to disk1n1. You can add more than two disks - use semicolons to separate their information.
 
-You can add **at most four streams**, as Linux Kernel supports at most four streams. Stream ID in Linux starts from 2, so the **streams ranges from 2 to 5**. FYI, stream 0 is WRITE_LIFE_NOT_SET and stream 1 is WRITE_LIFE_NONE, and they will both be passed as 0 to the SSD - other stream numbers will decrease by 1 (ref: https://elixir.bootlin.com/linux/latest/source/drivers/nvme/host/core.c#L801).
-
-Similarly, ";;d,e,f;" means assign all write requests by `d`, `e`, `f` to stream 4, and do not assign any write requests by any processes to stream 2, 3, or 5.
+You can add more than 4 streams, though Linux Kernel supports at most four streams. We have circumvented this limitation in the kernel module.
 
 ## Change Kernel Module Parameters On-the-fly
 
-If you have already loaded the kernel module, but want to change the processes assigned to each write stream, you can use the following command:
+If you have already loaded the kernel module, but want to change the parameters passed into the kernel module, you can use the following command:
 
-`echo "g;h;a,b,c" | sudo tee /sys/module/streamidtag/parameters/streams`
+`echo "disk0n1:1048576:4096:5:16;disk1n1:16777216:8192:7:32" | sudo tee /sys/module/autostream/parameters/disk_list`
 
-This will set parameter `streams` of module `streamidtag` to "g;h;a,b,c".
+This will set parameter `disk_list` of module `autostream` to "disk0n1:1048576:4096:5:16;disk1n1:16777216:8192:7:32".

@@ -77,6 +77,7 @@ static int disk_list_set(const char *newval, const struct kernel_param *kp)
 	int diskc = 1;
 	int processed = 1;
 	val = kmalloc(strlen(newval) + 1, GFP_KERNEL);
+	kfree(original_disk_list);
 	original_disk_list = kmalloc(strlen(newval) + 1, GFP_KERNEL);
 	strcpy(val, newval);
 	strcpy(original_disk_list, newval);
@@ -198,9 +199,9 @@ static int find_disk(const char* disk_name){
 		return -1;
 	}
 	for (; i < disks; i++){
-		//printwmodname("Matching disk %s\n", disk_list[i]);
+		// printwmodname("Matching disk %s\n", disk_list[i]);
 		if (strstr(disk_name, disk_list[i])){
-			printwmodname("Matched disk %s\n", disk_name);
+			// printwmodname("Matched disk %s\n", disk_name);
 			return i;
 		}
 	}
@@ -216,36 +217,36 @@ static void update_stream_table_entry(const char* disk_name, const sector_t sect
 	if (disk_id < 0){
 		return;
 	}
-	printwmodname("update_stream_table_entry for disk %s, sector %llu, data_len %u\n", disk_name, sector, data_len);
-	printwmodname("sector * KERNEL_SECTOR_SIZE = %llu, chunk_size_list[disk_id] = %d\n", (sector * KERNEL_SECTOR_SIZE), chunk_size_list[disk_id]);
+	// printwmodname("update_stream_table_entry for disk %s, sector %llu, data_len %u\n", disk_name, sector, data_len);
+	// printwmodname("sector * KERNEL_SECTOR_SIZE = %llu, chunk_size_list[disk_id] = %d\n", (sector * KERNEL_SECTOR_SIZE), chunk_size_list[disk_id]);
 	if (chunk_size_list[disk_id] == 0){
-		printwmodname("chunk_size_list[disk_id] == 0!");
+		// printwmodname("chunk_size_list[disk_id] == 0!");
 		return;
 	}
 	chunk = (sector * KERNEL_SECTOR_SIZE) / chunk_size_list[disk_id];
-	printwmodname("Updating stream table entry for disk %s, sector %llu, data_len %u, chunk %llu\n", disk_name, sector, data_len, chunk);
+	// printwmodname("Updating stream table entry for disk %s, sector %llu, data_len %u, chunk %llu\n", disk_name, sector, data_len, chunk);
 	ci = &chunk_list[disk_id][chunk];
-	printwmodname("Old access count for this chunk: %u, new count: %u\n", ci->access_cnt, ci->access_cnt + 1);
+	// printwmodname("Old access count for this chunk: %u, new count: %u\n", ci->access_cnt, ci->access_cnt + 1);
 	ci->access_cnt += 1;
 	recency_weight = 1 << (int)((ktime_get_real_ns() - ci->access_time) / 1000000000 / decay_period[disk_id]);
 	if (decay_period[disk_id] == 0){
-		printwmodname("decay_period[disk_id] == 0!");
+		// printwmodname("decay_period[disk_id] == 0!");
 		return;
 	}
-	printwmodname("Pow exp: %d, final recency_weight = %u\n", (int)((ktime_get_real_ns() - ci->access_time) / 1000000000 / decay_period[disk_id]), recency_weight);
+	// printwmodname("Pow exp: %d, final recency_weight = %u\n", (int)((ktime_get_real_ns() - ci->access_time) / 1000000000 / decay_period[disk_id]), recency_weight);
 	if (recency_weight == 0){
-		printwmodname("recency_weight == 0!");
+		// printwmodname("recency_weight == 0!");
 		return;
 	}
 	ci->access_cnt = (ci->access_cnt / recency_weight);
-	printwmodname("access_cnt = access_cnt/recency_weight: %u\n", ci->access_cnt);
-	for (; i < stream_list[disk_id]; i++){
+	// printwmodname("access_cnt = access_cnt/recency_weight: %u\n", ci->access_cnt);
+	for (i = 0; i < stream_list[disk_id]; i++){
 		ci->stream_id = i;
 		if (1 << (i + 1) >= ci->access_cnt){
 			break;
 		}
 	}
-	printwmodname("Now stream id (log 2): %d\n", i);
+	// printwmodname("Now stream id (log 2): %d\n", i);
 	ci->access_time = ktime_get_real_ns();
 }
 
@@ -258,22 +259,22 @@ static int get_stream_id(const char* disk_name, const sector_t sector, const uin
 	if (disk_id < 0){
 		return 0;
 	}
-	printwmodname("Getting stream ID for disk %s, sector %llu, data_len %u\n", disk_name, sector, data_len);
+	// printwmodname("Getting stream ID for disk %s, sector %llu, data_len %u\n", disk_name, sector, data_len);
 	if (sector == prev_end_sector[disk_id]){
 		to_stream = prev_stream[disk_id];
-		printwmodname("Using previous stream ID %d\n", to_stream);
+		// printwmodname("Using previous stream ID %d\n", to_stream);
 	}else{
 		if (chunk_size_list[disk_id] == 0){
-			printwmodname("get_stream_id chunk_size_list[disk_id] == 0!");
+			// printwmodname("get_stream_id chunk_size_list[disk_id] == 0!");
 			return 0;
 		}
 		chunk = (sector * KERNEL_SECTOR_SIZE) / chunk_size_list[disk_id];
 		to_stream = chunk_list[disk_id][chunk].stream_id;
-		printwmodname("Using stream ID %d from chunk\n", to_stream);
+		// printwmodname("Using stream ID %d from chunk\n", to_stream);
 	}
 	prev_end_sector[disk_id] = sector + data_len / KERNEL_SECTOR_SIZE;
 	prev_stream[disk_id] = to_stream;
-	printwmodname("Prev end sector now: %llu, Prev stream now: %d\n", prev_end_sector[disk_id], prev_stream[disk_id]);
+	// printwmodname("Prev end sector now: %llu, Prev stream now: %d\n", prev_end_sector[disk_id], prev_stream[disk_id]);
 	return to_stream + 2;
 }
 
@@ -496,16 +497,55 @@ static asmlinkage void (*real_blk_account_io_start)(struct request *rq);
 static asmlinkage void fh_blk_account_io_start(struct request *rq)
 {
 	struct gendisk *rq_disk = rq->rq_disk;
-	char* disk_name = rq_disk->disk_name;
-	if ((virt_addr_valid(disk_name))){
-		unsigned int data_len = blk_rq_bytes(rq);
-		sector_t sector = blk_rq_pos(rq);
-		update_stream_table_entry(disk_name, sector, data_len);
-		rq->write_hint = get_stream_id(disk_name, sector, data_len);
+	char* disk_name;
+	if (req_op(rq) == REQ_OP_WRITE){
+		disk_name = rq_disk->disk_name;
+		if ((virt_addr_valid(disk_name))){
+			unsigned int data_len = blk_rq_bytes(rq);
+			sector_t sector = blk_rq_pos(rq);
+			update_stream_table_entry(disk_name, sector, data_len);
+			rq->write_hint = get_stream_id(disk_name, sector, data_len);
+		}
 	}
-	
 	real_blk_account_io_start(rq);
 }
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,13,0)
+static asmlinkage blk_status_t (*real_nvme_setup_cmd)(struct nvme_ns *ns, struct request *req, struct nvme_command *cmd);
+static asmlinkage blk_status_t fh_nvme_setup_cmd(struct nvme_ns *ns, struct request *req, struct nvme_command *cmd)
+#else
+static asmlinkage blk_status_t (*real_nvme_setup_cmd)(struct nvme_ns *ns, struct request *req);
+static asmlinkage blk_status_t fh_nvme_setup_cmd(struct nvme_ns *ns, struct request *req)
+#endif
+{
+	blk_status_t ret;
+	struct gendisk *rq_disk;
+	rq_disk = req->rq_disk;
+	struct nvme_ctrl *ctrl;
+	char* disk_name;
+	int disk_id = -1;
+	if (req_op(req) == REQ_OP_WRITE){
+		disk_name = rq_disk->disk_name;
+		ctrl = ns->ctrl;
+		if (virt_addr_valid(disk_name)){
+			disk_id = find_disk(disk_name);
+			if (disk_id >= 0 && virt_addr_valid(ctrl)){
+				ctrl->nr_streams = stream_list[disk_id];
+			}
+		}
+	}
+	
+	#if LINUX_VERSION_CODE < KERNEL_VERSION(5,13,0)
+	ret = real_nvme_setup_cmd(ns, req, cmd);
+	#else
+	ret = real_nvme_setup_cmd(ns, req);
+	#endif
+	
+	// printwmodname("nvme_setup_cmd() after\n");
+	return ret;
+}
+
+
 
 #define SYSCALL_NAME(name) (name)
 
@@ -517,6 +557,7 @@ static asmlinkage void fh_blk_account_io_start(struct request *rq)
 	}
 
 static struct ftrace_hook demo_hooks[] = {
+	HOOK("nvme_setup_cmd",  fh_nvme_setup_cmd,  &real_nvme_setup_cmd),
 	HOOK("blk_account_io_start",  fh_blk_account_io_start,  &real_blk_account_io_start),
 };
 
