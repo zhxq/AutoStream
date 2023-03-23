@@ -23,7 +23,7 @@
 #include "nvme.h"
 
 // Uncomment the following line to enable logging to dmesg.
-#define DEBUG_MODULE
+// #define DEBUG_MODULE
 
 #ifdef DEBUG_MODULE
 #define printdbg(fmt, ...) \
@@ -492,24 +492,6 @@ void fh_remove_hooks(struct ftrace_hook *hooks, size_t count)
 #pragma GCC optimize("-fno-optimize-sibling-calls")
 #endif
 
-static asmlinkage void (*real_blk_account_io_start)(struct request *rq);
-
-static asmlinkage void fh_blk_account_io_start(struct request *rq)
-{
-	struct gendisk *rq_disk = rq->rq_disk;
-	char* disk_name;
-	if (req_op(rq) == REQ_OP_WRITE){
-		disk_name = rq_disk->disk_name;
-		if ((virt_addr_valid(disk_name))){
-			unsigned int data_len = blk_rq_bytes(rq);
-			sector_t sector = blk_rq_pos(rq);
-			update_stream_table_entry(disk_name, sector, data_len);
-			rq->write_hint = get_stream_id(disk_name, sector, data_len);
-		}
-	}
-	real_blk_account_io_start(rq);
-}
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5,13,0)
 static asmlinkage blk_status_t (*real_nvme_setup_cmd)(struct nvme_ns *ns, struct request *req, struct nvme_command *cmd);
 static asmlinkage blk_status_t fh_nvme_setup_cmd(struct nvme_ns *ns, struct request *req, struct nvme_command *cmd)
@@ -530,6 +512,10 @@ static asmlinkage blk_status_t fh_nvme_setup_cmd(struct nvme_ns *ns, struct requ
 		if (virt_addr_valid(disk_name)){
 			disk_id = find_disk(disk_name);
 			if (disk_id >= 0 && virt_addr_valid(ctrl)){
+				unsigned int data_len = blk_rq_bytes(req);
+				sector_t sector = blk_rq_pos(req);
+				update_stream_table_entry(disk_name, sector, data_len);
+				req->write_hint = get_stream_id(disk_name, sector, data_len);
 				ctrl->nr_streams = stream_list[disk_id];
 			}
 		}
@@ -558,7 +544,6 @@ static asmlinkage blk_status_t fh_nvme_setup_cmd(struct nvme_ns *ns, struct requ
 
 static struct ftrace_hook demo_hooks[] = {
 	HOOK("nvme_setup_cmd",  fh_nvme_setup_cmd,  &real_nvme_setup_cmd),
-	HOOK("blk_account_io_start",  fh_blk_account_io_start,  &real_blk_account_io_start),
 };
 
 static int fh_init(void)
